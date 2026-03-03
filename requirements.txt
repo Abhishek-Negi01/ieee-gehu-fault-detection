@@ -1,0 +1,11 @@
+# Python 3.12
+
+# Core
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.4.2
+
+# Boosting
+xgboost==2.0.3
+lightgbm==4.3.0
+
