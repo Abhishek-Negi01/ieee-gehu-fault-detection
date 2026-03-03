@@ -125,8 +125,6 @@ ieee-ml-fault-detection/
 ├── src/
 │   ├── train.py
 │   └── predict.py
-├── models/
-│   └── stacking_model.pkl
 ├── requirements.txt
 ├── FINAL.csv
 └── README.md
@@ -135,7 +133,6 @@ ieee-ml-fault-detection/
 - notebooks/notebook.ipynb: Contains all experimental code and model comparisons
 - src/train.py: Training script that builds and saves the final stacking model
 - src/predict.py: Prediction script that loads the model and generates FINAL.csv
-- models/stacking_model.pkl: Saved stacking ensemble model
 - requirements.txt: Python dependencies
 - FINAL.csv: Final submission file with ID and CLASS columns
 
