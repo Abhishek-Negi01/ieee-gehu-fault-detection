@@ -227,6 +227,76 @@ python src/predict.py
 
 9. FINAL.csv will be generated in the root folder
 
+## Further Experimentation and Final Decision
+
+After the initial Stacking v1 model was finalized, additional experiments were conducted to explore potential improvements through threshold tuning and adding more base models to the ensemble.
+
+### Threshold Tuning on Stacking v1
+
+Threshold tuning was attempted on the Stacking v1 model. The default threshold of 0.50 was used as baseline. A loop was run over thresholds from 0.10 to 0.90 in steps of 0.01 to find the threshold that maximizes F1 score.
+
+The best threshold found gave the following results:
+
+- Accuracy: 0.9905
+- Precision: 0.9916
+- Recall: 0.9847
+- Specificity: 0.9944
+- F1: 0.9881
+- ROC-AUC: 0.9996
+- PR-AUC: 0.9994
+- MCC: 0.9802
+- Log Loss: 0.0276
+- TP: 3409, FP: 29, TN: 5117, FN: 53
+
+Although F1 improved slightly from 0.9876 to 0.9881 and FP reduced from 37 to 29, the FN increased from 49 to 53 meaning 4 more faulty devices were missed. Since the problem is fault detection and missing a faulty device is far more dangerous than a false alarm, the tuned threshold was rejected. The default threshold of 0.50 was kept as the final decision because minimizing FN is the priority over maximizing F1 in this domain.
+
+### Stacking v2 with CatBoost
+
+Stacking v2 was attempted by adding CatBoost as a fourth base model to the existing LightGBM, XGBoost, and Extra Trees stack. The reasoning was that more diverse base models could help the meta learner make better decisions.
+
+Several issues were encountered during implementation:
+
+- CatBoost's class_weights parameter uses a list which sklearn's clone function cannot reproduce during cross validation inside StackingClassifier, throwing a RuntimeError. This was fixed by replacing class_weights with scale_pos_weight as a plain Python float.
+- np.float64 type also caused cloning issues so scale_pos_weight was explicitly cast to float using float() before model definition.
+- Running n_jobs negative one in StackingClassifier caused GPU memory overflow on Colab T4 because XGBoost on GPU and CatBoost on GPU competed for the same 15GB VRAM. This was fixed by setting n_jobs to 1 to run folds sequentially and keeping CatBoost on CPU with task_type CPU and thread_count negative one.
+
+The results of Stacking v2 were as follows:
+
+- Accuracy: 0.9898
+- Precision: 0.9890
+- Recall: 0.9856
+- Specificity: 0.9926
+- F1: 0.9873
+- ROC-AUC: 0.9996
+- PR-AUC: 0.9995
+- MCC: 0.9787
+- Log Loss: 0.0274
+- TP: 3412, FP: 38, TN: 5108, FN: 50
+
+### Comparison of All Stacking Versions
+
+| Model                       | Accuracy | Precision | Recall | F1     | ROC-AUC | MCC    | Log Loss | FN  | FP  |
+| --------------------------- | -------- | --------- | ------ | ------ | ------- | ------ | -------- | --- | --- |
+| Stacking v1 LGB XGB ET      | 0.9900   | 0.9893    | 0.9858 | 0.9876 | 0.9996  | 0.9792 | 0.0276   | 49  | 37  |
+| Stacking v1 Tuned Threshold | 0.9905   | 0.9916    | 0.9847 | 0.9881 | 0.9996  | 0.9802 | 0.0276   | 53  | 29  |
+| Stacking v2 LGB XGB ET Cat  | 0.9898   | 0.9890    | 0.9856 | 0.9873 | 0.9996  | 0.9787 | 0.0274   | 50  | 38  |
+
+### Final Decision
+
+The final decision is Stacking v1 with default threshold 0.50. The reasons are as follows:
+
+- Stacking v1 has the lowest FN of 49 which means the fewest missed faulty devices
+- Adding CatBoost in v2 did not improve results because CatBoost was already a weaker standalone model and adding a weaker model to stacking introduces noise rather than useful diversity
+- Threshold tuning improved F1 marginally but increased FN which is unacceptable in fault detection
+- The priority in this problem is Recall first, then F1, then Precision
+- Stacking v1 with default threshold wins on Recall, FN, F1, Accuracy, and MCC
+
+### Why CatBoost Underperformed in Stacking
+
+CatBoost as a standalone tuned model achieved F1 0.9828 which was lower than LightGBM 0.9874 and XGBoost 0.9855. In stacking, the meta learner learns to weight base models by their predictive power. A weaker base model gets down-weighted but still introduces noise in the meta-features which slightly hurts overall performance.
+
+The best stacking combinations use models that are both strong individually and diverse in their error patterns. LightGBM, XGBoost, and Extra Trees satisfy both conditions. CatBoost and XGBoost are too similar in nature being both boosting algorithms which reduces diversity benefit.
+
 ## Conclusion
 
 This project demonstrates a comprehensive approach to fault detection using machine learning. Through systematic experimentation with classical algorithms, ensemble methods, gradient boosting, and neural networks, we achieved a final model with 98.58% recall and 98.76% F1 score. The Stacking Ensemble combines the strengths of LightGBM, XGBoost, and Extra Trees to minimize false negatives, which is critical for preventing undetected faults in industrial systems.
